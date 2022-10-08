@@ -176,34 +176,35 @@ function MasterHouse(config = {}) {
 
   return this
 }
+/**
+ * @function jobsCreateHelper
+ * @descrition help user create function which return promise easier
+ * */
+MasterHouse.prototype.jobsCreateHelper = function (codes) {
+  if (!Array.isArray(codes)) {
+    console.error(`[MasterHouse] jobsCreateHelper: codes should be an array.`)
+    return
+  }
+  for (let i = 0; i < codes.length; i++) {
+    const code = codes[i]
+    if (typeof code !== 'string') {
+      console.error(`[MasterHouse] jobsCreateHelper: all codes should be string.`)
+      return
+    }
+  }
 
-const normalFunc = (f) => 'hello'
-const pResolveFunc = () => new Promise((r) => setTimeout(() => r('pResolveFunc'), 100))
-const pResolve = new Promise((r) => setTimeout(() => r('pResolve'), 100))
-const pRejectFunc = () => new Promise((_, j) => setTimeout(() => j('pRejectFunc'), 100))
-const pReject = new Promise((_, j) => setTimeout(() => j('pReject'), 100))
+  const evalCodes = []
+  for (let i = 0; i < codes.length; i++) {
+    try {
+      evalCodes.push(eval(`() => ${codes[i]}`))
+    } catch (e) {
+      console.error(
+        `[MasterHouse] jobsCreateHelper: codes include invalid codes, please check again. index: ${i}`
+      )
+    }
+  }
 
-const masterHouse = new MasterHouse({
-  maxRetry: 1,
-  eachCallback: (f) => f,
-  workerNumber: 2,
-  callback: (f) => console.log(f),
-})
-masterHouse
-  .doJobs([
-    1,
-    'string',
-    false,
-    null,
-    [],
-    {},
-
-    pResolveFunc,
-    normalFunc,
-    pResolve,
-    pRejectFunc,
-    pReject,
-  ])
-  .then((r) => console.log(r))
+  return evalCodes
+}
 
 module.exports = MasterHouse
