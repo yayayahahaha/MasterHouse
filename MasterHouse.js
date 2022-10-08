@@ -6,174 +6,202 @@ const { defaultCheck } = utils
 // 用 promise 的話就會變成跟之前很像
 // 用 callback 的話在使用上又稍嫌麻煩, 也不知道整段的工作什麼時候結束
 
+function MasterHouseWorker(config) {
+  MasterHouseWorker.prototype.updateConfig = (config) => Object.assign(this, { config })
+  MasterHouseWorker.prototype.getStatus = () => status
+  MasterHouseWorker.prototype.wakeup = function (jobStuff) {
+    changeStatus('working')
+    runJobFlow.call(this, jobStuff)
+  }
+  MasterHouseWorker.prototype.stop = function () {
+    // TODO 還沒處理強制中斷的
+    changeStatus('idel')
+  }
+  function changeStatus(value) {
+    status = value
+  }
+
+  async function runJobFlow(jobStuff) {
+    // delay
+    const { basicDelay, randomDelay } = this.config
+    const delay = basicDelay + Math.round(Math.random() * randomDelay)
+    await new Promise((resolve) => setTimeout(resolve, delay))
+
+    const { totalWorkingJobs, jobsGroupMap } = jobStuff
+
+    // worker go home.
+    if (totalWorkingJobs.length === 0) return void changeStatus('idle')
+
+    const jobInfo = totalWorkingJobs.splice(0, 1)[0]
+    const { jobsGroupId, jobId } = jobInfo
+    const jobGroup = jobsGroupMap[jobsGroupId]
+    const indexInGroup = jobGroup.workingJobs.findIndex((item) => item.jobId === jobId)
+    jobGroup.workingJobs.splice(indexInGroup, 1)
+    if (jobGroup.status === 'waiting') jobGroup.status = 'doing'
+
+    const result = await doJob.call(this, jobInfo)
+    jobInfo.result = result
+    jobGroup.finishedJobsCount++
+    config.eachCallback(jobInfo)
+
+    runJobFlow.call(this, jobStuff)
+
+    if (jobGroup.finishedJobsCount === jobGroup.totalJobs.length) {
+      if (jobGroup.status === 'done') return
+      jobGroup.status = 'done'
+      jobGroup.finished(jobGroup)
+    }
+  }
+
+  async function doJob(jobInfo) {
+    const { job } = jobInfo
+    const { maxRetry } = this.config
+
+    jobInfo.status = 'doing'
+    jobInfo.tryTimes++
+    const result = await _getResult(job)
+    if (result.status === 'error') {
+      jobInfo.errorData.push(result.result)
+      if (jobInfo.tryTimes <= maxRetry) {
+        return doJob.call(this, jobInfo)
+      }
+    }
+    jobInfo.status = 'done'
+    return result
+
+    async function _getResult(job) {
+      if (job instanceof Promise) return await job
+      else if (typeof job === 'function') return await _isFunction(job)
+      else return { status: 'success', result: job }
+    }
+    async function _isFunction(job) {
+      return Promise.resolve(job())
+        .then((result) => ({ status: 'success', result }))
+        .catch((result) => ({ status: 'error', result }))
+    }
+  }
+
+  let status = 'idle'
+  this.config = config
+
+  return this
+}
+
 function MasterHouse(config = {}) {
-  MasterHouse.prototype.addJobs = (jobs) => {
+  let jobGroupSeq = 0
+  let jobSeq = 0
+
+  const jobsGroupMap = {}
+  const totalJobs = []
+  const totalWorkingJobs = []
+
+  MasterHouse.prototype.doJobs = (jobs) => {
     if (!Array.isArray(jobs)) {
-      console.error('[MasterHouse] addJobs: jobs shold be an array.')
+      console.error('[MasterHouse] doJobs: jobs shold be an array.')
       return false
     }
 
-    // closure
+    const jobsGroupId = `jobsGroup-${++jobGroupSeq}`
+    const jobGroup = {
+      jobsGroupId,
+      status: 'waiting',
+      totalJobs: [],
+      workingJobs: [],
+      finishedJobsCount: 0,
+      resolve: null,
+    }
+    jobsGroupMap[jobsGroupId] = jobGroup
+
     jobs.forEach((rawJob) => {
       let job = rawJob
-      // if promise will reject, make the catch first
+
+      // if promise will reject, make the catch first to avoid uncatch rejection
       if (job instanceof Promise) {
         job = Promise.resolve(job)
           .then((result) => ({ status: 'success', result }))
           .catch((result) => ({ status: 'error', result }))
       }
 
+      const jobId = `job-${jobSeq}`
+      jobSeq++
       const jobInfo = {
+        jobsGroupId,
+        jobId,
         status: 'waiting', // waiting, doing, done
         result: null,
         errorData: [],
         tryTimes: 0,
         job,
       }
+
       totalJobs.push(jobInfo)
-      workingjJobs.push(jobInfo)
+      totalWorkingJobs.push(jobInfo)
+      jobGroup.workingJobs.push(jobInfo)
+      jobGroup.totalJobs.push(jobInfo)
+    })
+
+    return new Promise((resolve) => {
+      jobsGroupMap[jobsGroupId].finished = function (jobGroup) {
+        if (verbose) {
+          callback(jobGroup)
+          return resolve(jobGroup)
+        }
+
+        const result = jobGroup.totalJobs.map(({ result }) => result)
+        callback(result)
+        resolve(result)
+      }
+      wakeupWorkers({ jobsGroupMap, totalWorkingJobs, totalJobs })
     })
   }
+
   MasterHouse.prototype.getTotalJobs = () => totalJobs
   MasterHouse.prototype.getRestJobs = () => totalJobs.filter((job) => job.status !== 'done')
   MasterHouse.prototype.getWorkers = () => workers
-  MasterHouse.prototype.start = () => {
-    status = 'running'
-    workers.forEach((worker) => worker.start())
-    return new Promise((resolve) => {
-      resolveFunc = resolve
-    })
-  }
   MasterHouse.prototype.stop = () => {
     // TODO 強制全部取消的部分
-    status = 'stop'
     workers.forEach((worker) => worker.stop())
   }
 
-  function MasterHouseWorker(config) {
-    MasterHouseWorker.prototype.getStatus = () => status
-    MasterHouseWorker.prototype.start = function () {
-      changeStatus('running')
-      runJobFlow(config)
-    }
-    MasterHouseWorker.prototype.stop = function () {
-      changeStatus('stop')
-    }
-    function changeStatus(value) {
-      status = value
-    }
-
-    async function runJobFlow(config) {
-      const { basicDelay, randomDelay } = config
-      const delay = basicDelay + Math.round(Math.random() * randomDelay)
-
-      // delay
-      await new Promise((resolve) => setTimeout(resolve, delay))
-
-      const pickIndex = pickRandomly ? Math.floor(workingjJobs.length * Math.random()) : 0
-      if (workingjJobs.length === 0) {
-        // worker go home.
-        return void changeStatus('idle')
-      }
-
-      const jobInfo = workingjJobs.splice(pickIndex, 1)[0]
-      const result = await doJob({ jobInfo, config })
-      jobInfo.result = result
-      config.eachCallback(jobInfo)
-      finishedjobsCount++
-      runJobFlow(config)
-
-      if (finishedjobsCount === totalJobs.length) {
-        endingPart(config)
-      }
-    }
-
-    async function doJob({ jobInfo, config }) {
-      const { job } = jobInfo
-      const { maxRetry } = config
-
-      jobInfo.status = 'doing'
-      jobInfo.tryTimes++
-      const result = await _getResult(job)
-      if (result.status === 'error') {
-        jobInfo.errorData.push(result.result)
-        if (jobInfo.tryTimes <= maxRetry) {
-          return doJob({ jobInfo, config })
-        }
-      }
-      jobInfo.status = 'done'
-      return result
-
-      async function _getResult(job) {
-        if (job instanceof Promise) return await job
-        else if (typeof job === 'function') return await _isFunction(job)
-        else return { status: 'success', result: job }
-      }
-      async function _isFunction(job) {
-        return Promise.resolve(job())
-          .then((result) => ({ status: 'success', result }))
-          .catch((result) => ({ status: 'error', result }))
-      }
-    }
-
-    let status = 'stop'
-
-    return this
-  }
-
-  function endingPart(config) {
-    const { callback, verbose } = config
-    const resultList = verbose ? totalJobs : totalJobs.map(({ result }) => result)
-
-    callback(resultList)
-    resolveFunc(resultList)
-    MasterHouse.prototype.stop()
+  function wakeupWorkers(jobsGroupMap) {
+    workers.forEach((worker) => worker.wakeup(jobsGroupMap))
   }
 
   const usingConfig = defaultCheck(new.target, config)
   if (!usingConfig) return null
 
-  // stop, runnig, idle
-  let status = 'stop'
-
-  const { mute, log, eachCallback, callback, pickRandomly, workerNumber, jobs } = usingConfig
-
+  const { workerNumber, verbose, callback } = usingConfig
   const workers = [...Array(workerNumber)].map(() => new MasterHouseWorker(usingConfig))
-  let finishedjobsCount = 0
-  let resolveFunc = (f) => f
-  const totalJobs = []
-  const workingjJobs = []
-
-  this.addJobs(jobs)
 
   return this
 }
 
+const normalFunc = (f) => 'hello'
+const pResolveFunc = () => new Promise((r) => setTimeout(() => r('pResolveFunc'), 100))
+const pResolve = new Promise((r) => setTimeout(() => r('pResolve'), 100))
+const pRejectFunc = () => new Promise((_, j) => setTimeout(() => j('pRejectFunc'), 100))
+const pReject = new Promise((_, j) => setTimeout(() => j('pReject'), 100))
 const masterHouse = new MasterHouse({
   maxRetry: 1,
   eachCallback: (f) => f,
   workerNumber: 2,
   callback: (f) => console.log(f),
 })
-const normalFunc = (f) => 'hello'
-const pResolveFunc = () => new Promise((r) => setTimeout(() => r('pResolveFunc'), 100))
-const pResolve = new Promise((r) => setTimeout(() => r('pResolve'), 100))
-const pRejectFunc = () => new Promise((_, j) => setTimeout(() => j('pRejectFunc'), 100))
-const pReject = new Promise((_, j) => setTimeout(() => j('pReject'), 100))
-masterHouse.addJobs([
-  1,
-  'string',
-  false,
-  null,
-  [],
-  {},
+masterHouse
+  .doJobs([
+    1,
+    'string',
+    false,
+    null,
+    [],
+    {},
 
-  pResolveFunc,
-  normalFunc,
-  pResolve,
-  pRejectFunc,
-  pReject,
-])
-masterHouse.start()
+    pResolveFunc,
+    normalFunc,
+    pResolve,
+    pRejectFunc,
+    pReject,
+  ])
+  .then((r) => console.log(r))
 
 module.exports = MasterHouse

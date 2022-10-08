@@ -14,8 +14,10 @@ function defaultCheck(newTarget, config) {
 
   const usingConfig = {}
   const defaultParams = {
-    mute: {
-      default: false,
+    consoleLevel: {
+      default: 'loadingBar',
+      validator: (value) => ['loading', 'mute', 'verbose'].includes(value),
+      errorMessage: `consoleLevel should be one of ${['loading', 'mute', 'verbose'].join(', ')}`,
     },
     verbose: {
       default: false,
@@ -44,18 +46,10 @@ function defaultCheck(newTarget, config) {
       validator: (value) => value >= 0,
       errorMessage: 'maxRetry can only be equal or bigger than 0',
     },
-    pickRandomly: {
-      default: false,
-    },
     workerNumber: {
       default: 10,
       validator: isPositiveInt,
       errorMessage: 'workerNumber can only be positive integer',
-    },
-    jobs: {
-      default: [],
-      validator: (value) => Array.isArray(value),
-      errorMessage: 'jobs can only be an array',
     },
   }
 
