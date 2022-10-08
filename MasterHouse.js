@@ -1,91 +1,6 @@
 const utils = require('./utils')
 const { defaultCheck } = utils
 
-function MasterHouseWorker(config) {
-  MasterHouseWorker.prototype.updateConfig = (config) => Object.assign(this, { config })
-  MasterHouseWorker.prototype.wakeup = function (jobStuff) {
-    changeStatus('working')
-    runJobFlow.call(this, jobStuff)
-  }
-
-  function changeStatus(value) {
-    status = value
-  }
-
-  /**
-   * @function runJobFlow
-   * @description pickup job from jobList, and call ending part with all jobs are finished
-   * */
-  async function runJobFlow(jobStuff) {
-    // delay
-    const { basicDelay, randomDelay } = this.config
-    const delay = basicDelay + Math.round(Math.random() * randomDelay)
-    await new Promise((resolve) => setTimeout(resolve, delay))
-
-    const { totalWorkingJobs, jobsGroupMap } = jobStuff
-
-    // worker go home.
-    if (totalWorkingJobs.length === 0) return void changeStatus('idle')
-
-    const jobInfo = totalWorkingJobs.splice(0, 1)[0]
-    const { jobsGroupId, jobId } = jobInfo
-    const jobGroup = jobsGroupMap[jobsGroupId]
-    const indexInGroup = jobGroup.workingJobs.findIndex((item) => item.jobId === jobId)
-    jobGroup.workingJobs.splice(indexInGroup, 1)
-    if (jobGroup.status === 'waiting') jobGroup.status = 'doing'
-
-    const result = await doJob.call(this, jobInfo)
-    jobInfo.result = result
-    jobGroup.finishedJobsCount++
-    config.eachCallback(jobInfo)
-
-    runJobFlow.call(this, jobStuff)
-
-    if (jobGroup.finishedJobsCount === jobGroup.totalJobs.length) {
-      if (jobGroup.status === 'done') return
-      jobGroup.status = 'done'
-      jobGroup.finished(jobGroup)
-    }
-  }
-
-  /**
-   * @function doJob
-   * @description check job type and await it until it finished
-   * */
-  async function doJob(jobInfo) {
-    const { job } = jobInfo
-    const { maxRetry } = this.config
-
-    jobInfo.status = 'doing'
-    jobInfo.tryTimes++
-    const result = await _getResult(job)
-    if (result.status === 'error') {
-      jobInfo.errorData.push(result.result)
-      if (jobInfo.tryTimes <= maxRetry) {
-        return doJob.call(this, jobInfo)
-      }
-    }
-    jobInfo.status = 'done'
-    return result
-
-    async function _getResult(job) {
-      if (job instanceof Promise) return await job
-      else if (typeof job === 'function') return await _isFunction(job)
-      else return { status: 'success', result: job }
-    }
-    async function _isFunction(job) {
-      return Promise.resolve(job())
-        .then((result) => ({ status: 'success', result }))
-        .catch((result) => ({ status: 'error', result }))
-    }
-  }
-
-  let status = 'idle'
-  this.config = config
-
-  return this
-}
-
 /**
  * @class MasterHouse
  * @prototype doJobs<function> - accept array with jobs
@@ -176,6 +91,92 @@ function MasterHouse(config = {}) {
 
   return this
 }
+
+function MasterHouseWorker(config) {
+  MasterHouseWorker.prototype.updateConfig = (config) => Object.assign(this, { config })
+  MasterHouseWorker.prototype.wakeup = function (jobStuff) {
+    changeStatus('working')
+    runJobFlow.call(this, jobStuff)
+  }
+
+  function changeStatus(value) {
+    status = value
+  }
+
+  /**
+   * @function runJobFlow
+   * @description pickup job from jobList, and call ending part with all jobs are finished
+   * */
+  async function runJobFlow(jobStuff) {
+    // delay
+    const { basicDelay, randomDelay } = this.config
+    const delay = basicDelay + Math.round(Math.random() * randomDelay)
+    await new Promise((resolve) => setTimeout(resolve, delay))
+
+    const { totalWorkingJobs, jobsGroupMap } = jobStuff
+
+    // worker go home.
+    if (totalWorkingJobs.length === 0) return void changeStatus('idle')
+
+    const jobInfo = totalWorkingJobs.splice(0, 1)[0]
+    const { jobsGroupId, jobId } = jobInfo
+    const jobGroup = jobsGroupMap[jobsGroupId]
+    const indexInGroup = jobGroup.workingJobs.findIndex((item) => item.jobId === jobId)
+    jobGroup.workingJobs.splice(indexInGroup, 1)
+    if (jobGroup.status === 'waiting') jobGroup.status = 'doing'
+
+    const result = await doJob.call(this, jobInfo)
+    jobInfo.result = result
+    jobGroup.finishedJobsCount++
+    config.eachCallback(jobInfo)
+
+    runJobFlow.call(this, jobStuff)
+
+    if (jobGroup.finishedJobsCount === jobGroup.totalJobs.length) {
+      if (jobGroup.status === 'done') return
+      jobGroup.status = 'done'
+      jobGroup.finished(jobGroup)
+    }
+  }
+
+  /**
+   * @function doJob
+   * @description check job type and await it until it finished
+   * */
+  async function doJob(jobInfo) {
+    const { job } = jobInfo
+    const { maxRetry } = this.config
+
+    jobInfo.status = 'doing'
+    jobInfo.tryTimes++
+    const result = await _getResult(job)
+    if (result.status === 'error') {
+      jobInfo.errorData.push(result.result)
+      if (jobInfo.tryTimes <= maxRetry) {
+        return doJob.call(this, jobInfo)
+      }
+    }
+    jobInfo.status = 'done'
+    return result
+
+    async function _getResult(job) {
+      if (job instanceof Promise) return await job
+      else if (typeof job === 'function') return await _isFunction(job)
+      else return { status: 'success', result: job }
+    }
+    async function _isFunction(job) {
+      return Promise.resolve(job())
+        .then((result) => ({ status: 'success', result }))
+        .catch((result) => ({ status: 'error', result }))
+    }
+  }
+
+  let status = 'idle'
+  this.config = config
+
+  return this
+}
+
 /**
  * @function jobsCreateHelper
  * @descrition help user create function which return promise easier
