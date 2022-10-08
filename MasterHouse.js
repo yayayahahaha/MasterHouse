@@ -9,10 +9,20 @@ function MasterHouse(config = {}) {
     }
 
     // closure
-    jobs.forEach((job) => {
+    jobs.forEach((rawJob) => {
+      let job = rawJob
+      // if promise will reject, make the catch first
+      if (job instanceof Promise) {
+        job = Promise.resolve(job)
+          .then((result) => ({ status: 'success', result }))
+          .catch((result) => ({ status: 'error', result }))
+      }
+
       const jobInfo = {
         status: 'waiting', // waiting, doing, done
         result: null,
+        errorData: [],
+        tryTimes: 0,
         job,
       }
       totalJobs.push(jobInfo)
@@ -33,55 +43,63 @@ function MasterHouse(config = {}) {
 
   function MasterHouseWorker(config) {
     MasterHouseWorker.prototype.getStatus = () => status
-    MasterHouseWorker.prototype.start = start
-    MasterHouseWorker.prototype.stop = stop
-
+    MasterHouseWorker.prototype.start = function () {
+      changeStatus('running')
+      runJobFlow(config)
+    }
+    MasterHouseWorker.prototype.stop = function () {
+      changeStatus('stop')
+    }
     function changeStatus(value) {
       status = value
     }
 
-    async function pickJob({ delay, pickRandomly, eachCallback: callback }) {
-      await new Promise((resolve) => setTimeout(resolve, delay))
-      const pickIndex = pickRandomly ? Math.floor(workingjJobs.length * Math.random()) : 0
+    async function runJobFlow(config) {
+      const { basicDelay, randomDelay } = config
+      const delay = basicDelay + Math.round(Math.random() * randomDelay)
 
+      // delay
+      await new Promise((resolve) => setTimeout(resolve, delay))
+
+      const pickIndex = pickRandomly ? Math.floor(workingjJobs.length * Math.random()) : 0
       const jobPiece = workingjJobs.splice(pickIndex, 1)
       if (!jobPiece.length) return void changeStatus('idle')
 
-      const job = jobPiece[0]
-      doJob({ job, eachCallback })
+      const jobInfo = jobPiece[0]
+      const result = await doJob({ jobInfo, config })
+      jobInfo.result = result
+      console.log(jobInfo)
     }
 
-    async function doJob({ job: jobInfo, callback }) {
+    async function doJob({ jobInfo, config }) {
       const { job } = jobInfo
+      const { maxRetry } = config
+
+      jobInfo.status = 'doing'
+      jobInfo.tryTimes++
       const result = await _getResult(job)
-      console.log(result)
+      if (result.status === 'error') {
+        jobInfo.errorData.push(result.result)
+        if (jobInfo.tryTimes <= maxRetry) {
+          return doJob({ jobInfo, config })
+        }
+      }
+      jobInfo.status = 'done'
+      return result
 
       async function _getResult(job) {
-        if (job instanceof Promise) return await _isPromise(job)
+        if (job instanceof Promise) return await job
         else if (typeof job === 'function') return await _isFunction(job)
-        else return job
+        else return { status: 'success', result: job }
       }
-      function _isPromise(job) {
-        return Promise.resolve(job)
-          .then((r) => r)
-          .catch((e) => e)
-      }
-      function _isFunction(job) {
-        return _isPromise(Promise.resolve(job()))
+      async function _isFunction(job) {
+        return Promise.resolve(job())
+          .then((result) => ({ status: 'success', result }))
+          .catch((result) => ({ status: 'error', result }))
       }
     }
-
-    const { randomDelay, basicDelay, pickRandomly, eachCallback } = config
-    const delay = basicDelay + randomDelay
 
     let status = 'stop'
-    function start() {
-      changeStatus('running')
-      pickJob({ delay, pickRandomly, eachCallback })
-    }
-    function stop() {
-      changeStatus('stop')
-    }
 
     return this
   }
@@ -113,19 +131,24 @@ function MasterHouse(config = {}) {
   return this
 }
 
-const masterHouse = new MasterHouse()
-const normalFunc = (f) => f
-const pResolveFunc = () => new Promise((r) => setTimeout(r, 500))
-const pResolve = new Promise((r) => setTimeout(r, 500))
+const masterHouse = new MasterHouse({
+  maxRetry: 3,
+  eachCallback: (f) => console.log(f),
+  workerNumber: 50,
+})
+const normalFunc = (f) => 'hello'
+const pResolveFunc = () => new Promise((r) => setTimeout(() => r('pResolveFunc'), 500))
+const pResolve = new Promise((r) => setTimeout(() => r('pResolve'), 500))
 const pRejectFunc = () => new Promise((_, j) => setTimeout(() => j('pRejectFunc'), 500))
 const pReject = new Promise((_, j) => setTimeout(() => j('pReject'), 500))
 masterHouse.addJobs([
-  // 1,
-  // 'string',
-  // false,
-  // null,
-  // [],
-  // {},
+  1,
+  'string',
+  false,
+  null,
+  [],
+  {},
+
   pResolveFunc,
   normalFunc,
   pResolve,

@@ -16,11 +16,9 @@ function defaultCheck(newTarget, config) {
   const defaultParams = {
     mute: {
       default: false,
-      validator: (f) => true,
     },
     log: {
       default: true,
-      validator: (f) => true,
     },
     basicDelay: {
       default: 0,
@@ -34,11 +32,9 @@ function defaultCheck(newTarget, config) {
     },
     eachCallback: {
       default: (f) => f,
-      validator: (f) => true,
     },
     callback: {
       default: (f) => f,
-      validator: (f) => true,
     },
     maxRetry: {
       default: 0,
@@ -47,7 +43,6 @@ function defaultCheck(newTarget, config) {
     },
     pickRandomly: {
       default: false,
-      validator: (f) => true,
     },
     workerNumber: {
       default: 10,
@@ -65,7 +60,7 @@ function defaultCheck(newTarget, config) {
     const configIndex = configKeys.findIndex((item) => item === key)
     if (~configIndex) configKeys.splice(configIndex, 1)
 
-    const { default: defaultValue, validator, errorMessage = '' } = defaultParams[key]
+    const { default: defaultValue, validator = () => true, errorMessage = '' } = defaultParams[key]
     const defaultType = typeof defaultValue
 
     usingConfig[key] = defaultValue
