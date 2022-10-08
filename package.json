@@ -1,0 +1,24 @@
+{
+  "name": "master-house",
+  "version": "0.0.1",
+  "description": "Together, stronger",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yayayahahaha/MasterHouse.git"
+  },
+  "keywords": [
+    "master-house",
+    "MasterHouse",
+    "master house"
+  ],
+  "author": "flyc",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yayayahahaha/MasterHouse/issues"
+  },
+  "homepage": "https://github.com/yayayahahaha/MasterHouse#readme"
+}
