@@ -1,5 +1,7 @@
 const utils = require('./utils')
-const { defaultCheck } = utils
+const { defaultCheck, toFixed } = utils
+
+// TODO function reset
 
 /**
  * @class MasterHouse
@@ -91,6 +93,36 @@ function MasterHouse(config = {}) {
 
   return this
 }
+/**
+ * @function jobsCreateHelper
+ * @descrition help user create function which return promise easier
+ * */
+MasterHouse.prototype.jobsCreateHelper = function (codes) {
+  if (!Array.isArray(codes)) {
+    console.error(`[MasterHouse] jobsCreateHelper: codes should be an array.`)
+    return
+  }
+  for (let i = 0; i < codes.length; i++) {
+    const code = codes[i]
+    if (typeof code !== 'string') {
+      console.error(`[MasterHouse] jobsCreateHelper: all codes should be string.`)
+      return
+    }
+  }
+
+  const evalCodes = []
+  for (let i = 0; i < codes.length; i++) {
+    try {
+      evalCodes.push(eval(`() => ${codes[i]}`))
+    } catch (e) {
+      console.error(
+        `[MasterHouse] jobsCreateHelper: codes include invalid codes, please check again. index: ${i}`
+      )
+    }
+  }
+
+  return evalCodes
+}
 
 function MasterHouseWorker(config) {
   MasterHouseWorker.prototype.updateConfig = (config) => Object.assign(this, { config })
@@ -128,6 +160,7 @@ function MasterHouseWorker(config) {
     const result = await doJob.call(this, jobInfo)
     jobInfo.result = result
     jobGroup.finishedJobsCount++
+    this.updateLoading(jobStuff)
     config.eachCallback(jobInfo)
 
     runJobFlow.call(this, jobStuff)
@@ -176,36 +209,28 @@ function MasterHouseWorker(config) {
 
   return this
 }
+MasterHouseWorker.prototype.updateLoading = function (jobStuff) {
+  const { jobsGroupMap } = jobStuff
+  Object.keys(jobsGroupMap).forEach((jobGroupId) => {
+    const jobGroup = jobsGroupMap[jobGroupId]
 
-/**
- * @function jobsCreateHelper
- * @descrition help user create function which return promise easier
- * */
-MasterHouse.prototype.jobsCreateHelper = function (codes) {
-  if (!Array.isArray(codes)) {
-    console.error(`[MasterHouse] jobsCreateHelper: codes should be an array.`)
-    return
-  }
-  for (let i = 0; i < codes.length; i++) {
-    const code = codes[i]
-    if (typeof code !== 'string') {
-      console.error(`[MasterHouse] jobsCreateHelper: all codes should be string.`)
-      return
+    const { finishedJobsCount, totalJobs } = jobGroup
+    const total = totalJobs.length
+
+    const basicNumber = 40
+    const now = (finishedJobsCount * basicNumber) / total
+    const end = (total * basicNumber) / total
+    let loadingStr = ''
+    for (let i = 0; i < end; i++) {
+      if (i <= now) loadingStr += '='
+      else loadingStr += ' '
     }
-  }
 
-  const evalCodes = []
-  for (let i = 0; i < codes.length; i++) {
-    try {
-      evalCodes.push(eval(`() => ${codes[i]}`))
-    } catch (e) {
-      console.error(
-        `[MasterHouse] jobsCreateHelper: codes include invalid codes, please check again. index: ${i}`
-      )
-    }
-  }
+    const persent = toFixed((finishedJobsCount * 100) / total, 2)
+    process.stdout.write(`\r${persent}% [${loadingStr}] ${finishedJobsCount}/${total}`)
 
-  return evalCodes
+    if (finishedJobsCount === total) console.log()
+  })
 }
 
 module.exports = MasterHouse

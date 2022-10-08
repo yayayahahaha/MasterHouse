@@ -1,5 +1,9 @@
 const isPositiveInt = (number) => /^[1-9]\d*$/.test(number)
 
+/**
+ * @function defaultCheck
+ * @description check MasterHouse params is validate or not
+ * */
 function defaultCheck(newTarget, config) {
   if (newTarget === undefined) {
     console.error('[MasterHouse] Please use new operator to create an instance of MasterHouse')
@@ -90,4 +94,22 @@ function defaultCheck(newTarget, config) {
   return usingConfig
 }
 
-module.exports = { defaultCheck }
+/**
+ * @function toFixed
+ * @description smarter toFixed
+ * */
+function toFixed(value, presision = 2) {
+  if (typeof value !== 'number' || value !== value /* NaN */) {
+    console.error('[toFixed] value should be a number')
+    return value
+  }
+  if (!isPositiveInt(presision)) {
+    console.error('[toFixed] presision should be a positive integer')
+    return value
+  }
+
+  const time = 10 ** presision
+  return (Math.round(value * time) / time).toFixed(presision)
+}
+
+module.exports = { defaultCheck, toFixed }
