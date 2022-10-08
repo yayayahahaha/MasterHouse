@@ -46,9 +46,9 @@ function defaultCheck(newTarget, config) {
       default: (f) => f,
     },
     maxRetry: {
-      default: 0,
-      validator: (value) => value >= 0,
-      errorMessage: 'maxRetry can only be equal or bigger than 0',
+      default: -1,
+      validator: (value) => value >= 0 || value === -1,
+      errorMessage: 'maxRetry can only be equal or bigger than 0 or -1 means infinite',
     },
     workerNumber: {
       default: 10,

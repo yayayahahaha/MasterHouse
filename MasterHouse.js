@@ -185,7 +185,7 @@ function MasterHouseWorker(config) {
     const result = await _getResult(job)
     if (result.status === 'error') {
       jobInfo.errorData.push(result.result)
-      if (jobInfo.tryTimes <= maxRetry) {
+      if (jobInfo.tryTimes <= maxRetry || maxRetry === -1) {
         return doJob.call(this, jobInfo)
       }
     }
