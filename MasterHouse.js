@@ -1,6 +1,11 @@
 const utils = require('./utils')
 const { defaultCheck } = utils
 
+// TODO 好像要想辦法測測看每個 MasterHouse 的獨立性?
+
+// 用 promise 的話就會變成跟之前很像
+// 用 callback 的話在使用上又稍嫌麻煩, 也不知道整段的工作什麼時候結束
+
 function MasterHouse(config = {}) {
   MasterHouse.prototype.addJobs = (jobs) => {
     if (!Array.isArray(jobs)) {
@@ -35,8 +40,12 @@ function MasterHouse(config = {}) {
   MasterHouse.prototype.start = () => {
     status = 'running'
     workers.forEach((worker) => worker.start())
+    return new Promise((resolve) => {
+      resolveFunc = resolve
+    })
   }
   MasterHouse.prototype.stop = () => {
+    // TODO 強制全部取消的部分
     status = 'stop'
     workers.forEach((worker) => worker.stop())
   }
@@ -62,13 +71,21 @@ function MasterHouse(config = {}) {
       await new Promise((resolve) => setTimeout(resolve, delay))
 
       const pickIndex = pickRandomly ? Math.floor(workingjJobs.length * Math.random()) : 0
-      const jobPiece = workingjJobs.splice(pickIndex, 1)
-      if (!jobPiece.length) return void changeStatus('idle')
+      if (workingjJobs.length === 0) {
+        // worker go home.
+        return void changeStatus('idle')
+      }
 
-      const jobInfo = jobPiece[0]
+      const jobInfo = workingjJobs.splice(pickIndex, 1)[0]
       const result = await doJob({ jobInfo, config })
       jobInfo.result = result
-      console.log(jobInfo)
+      config.eachCallback(jobInfo)
+      finishedjobsCount++
+      runJobFlow(config)
+
+      if (finishedjobsCount === totalJobs.length) {
+        endingPart(config)
+      }
     }
 
     async function doJob({ jobInfo, config }) {
@@ -104,43 +121,45 @@ function MasterHouse(config = {}) {
     return this
   }
 
+  function endingPart(config) {
+    const { callback, verbose } = config
+    const resultList = verbose ? totalJobs : totalJobs.map(({ result }) => result)
+
+    callback(resultList)
+    resolveFunc(resultList)
+    MasterHouse.prototype.stop()
+  }
+
   const usingConfig = defaultCheck(new.target, config)
   if (!usingConfig) return null
 
   // stop, runnig, idle
   let status = 'stop'
 
-  const {
-    mute,
-    log,
-    basicDelay,
-    randomDelay,
-    eachCallback,
-    callback,
-    maxRetry,
-    pickRandomly,
-    workerNumber,
-    jobs,
-  } = usingConfig
+  const { mute, log, eachCallback, callback, pickRandomly, workerNumber, jobs } = usingConfig
 
   const workers = [...Array(workerNumber)].map(() => new MasterHouseWorker(usingConfig))
+  let finishedjobsCount = 0
+  let resolveFunc = (f) => f
   const totalJobs = []
   const workingjJobs = []
+
   this.addJobs(jobs)
 
   return this
 }
 
 const masterHouse = new MasterHouse({
-  maxRetry: 3,
-  eachCallback: (f) => console.log(f),
-  workerNumber: 50,
+  maxRetry: 1,
+  eachCallback: (f) => f,
+  workerNumber: 2,
+  callback: (f) => console.log(f),
 })
 const normalFunc = (f) => 'hello'
-const pResolveFunc = () => new Promise((r) => setTimeout(() => r('pResolveFunc'), 500))
-const pResolve = new Promise((r) => setTimeout(() => r('pResolve'), 500))
-const pRejectFunc = () => new Promise((_, j) => setTimeout(() => j('pRejectFunc'), 500))
-const pReject = new Promise((_, j) => setTimeout(() => j('pReject'), 500))
+const pResolveFunc = () => new Promise((r) => setTimeout(() => r('pResolveFunc'), 100))
+const pResolve = new Promise((r) => setTimeout(() => r('pResolve'), 100))
+const pRejectFunc = () => new Promise((_, j) => setTimeout(() => j('pRejectFunc'), 100))
+const pReject = new Promise((_, j) => setTimeout(() => j('pReject'), 100))
 masterHouse.addJobs([
   1,
   'string',

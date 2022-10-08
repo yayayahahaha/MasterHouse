@@ -17,6 +17,9 @@ function defaultCheck(newTarget, config) {
     mute: {
       default: false,
     },
+    verbose: {
+      default: false,
+    },
     log: {
       default: true,
     },
