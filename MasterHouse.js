@@ -1,26 +1,21 @@
 const utils = require('./utils')
 const { defaultCheck } = utils
 
-// TODO 好像要想辦法測測看每個 MasterHouse 的獨立性?
-
-// 用 promise 的話就會變成跟之前很像
-// 用 callback 的話在使用上又稍嫌麻煩, 也不知道整段的工作什麼時候結束
-
 function MasterHouseWorker(config) {
   MasterHouseWorker.prototype.updateConfig = (config) => Object.assign(this, { config })
-  MasterHouseWorker.prototype.getStatus = () => status
   MasterHouseWorker.prototype.wakeup = function (jobStuff) {
     changeStatus('working')
     runJobFlow.call(this, jobStuff)
   }
-  MasterHouseWorker.prototype.stop = function () {
-    // TODO 還沒處理強制中斷的
-    changeStatus('idel')
-  }
+
   function changeStatus(value) {
     status = value
   }
 
+  /**
+   * @function runJobFlow
+   * @description pickup job from jobList, and call ending part with all jobs are finished
+   * */
   async function runJobFlow(jobStuff) {
     // delay
     const { basicDelay, randomDelay } = this.config
@@ -53,6 +48,10 @@ function MasterHouseWorker(config) {
     }
   }
 
+  /**
+   * @function doJob
+   * @description check job type and await it until it finished
+   * */
   async function doJob(jobInfo) {
     const { job } = jobInfo
     const { maxRetry } = this.config
@@ -87,6 +86,10 @@ function MasterHouseWorker(config) {
   return this
 }
 
+/**
+ * @class MasterHouse
+ * @prototype doJobs<function> - accept array with jobs
+ * */
 function MasterHouse(config = {}) {
   let jobGroupSeq = 0
   let jobSeq = 0
@@ -95,6 +98,11 @@ function MasterHouse(config = {}) {
   const totalJobs = []
   const totalWorkingJobs = []
 
+  /**
+   * @function doJobs
+   * @param jobs<array>
+   * @description
+   * */
   MasterHouse.prototype.doJobs = (jobs) => {
     if (!Array.isArray(jobs)) {
       console.error('[MasterHouse] doJobs: jobs shold be an array.')
@@ -151,16 +159,9 @@ function MasterHouse(config = {}) {
         callback(result)
         resolve(result)
       }
+
       wakeupWorkers({ jobsGroupMap, totalWorkingJobs, totalJobs })
     })
-  }
-
-  MasterHouse.prototype.getTotalJobs = () => totalJobs
-  MasterHouse.prototype.getRestJobs = () => totalJobs.filter((job) => job.status !== 'done')
-  MasterHouse.prototype.getWorkers = () => workers
-  MasterHouse.prototype.stop = () => {
-    // TODO 強制全部取消的部分
-    workers.forEach((worker) => worker.stop())
   }
 
   function wakeupWorkers(jobsGroupMap) {
@@ -181,6 +182,7 @@ const pResolveFunc = () => new Promise((r) => setTimeout(() => r('pResolveFunc')
 const pResolve = new Promise((r) => setTimeout(() => r('pResolve'), 100))
 const pRejectFunc = () => new Promise((_, j) => setTimeout(() => j('pRejectFunc'), 100))
 const pReject = new Promise((_, j) => setTimeout(() => j('pReject'), 100))
+
 const masterHouse = new MasterHouse({
   maxRetry: 1,
   eachCallback: (f) => f,
