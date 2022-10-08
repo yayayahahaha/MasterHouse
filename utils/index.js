@@ -54,6 +54,11 @@ function defaultCheck(newTarget, config) {
       validator: isPositiveInt,
       errorMessage: 'workerNumber can only be positive integer',
     },
+    jobs: {
+      default: [],
+      validator: (value) => Array.isArray(value),
+      errorMessage: 'jobs can only be an array',
+    },
   }
 
   Object.keys(defaultParams).forEach((key) => {
@@ -63,27 +68,32 @@ function defaultCheck(newTarget, config) {
     const { default: defaultValue, validator, errorMessage = '' } = defaultParams[key]
     const defaultType = typeof defaultValue
 
-    if (config[key] === undefined) {
-      usingConfig[key] = defaultValue
+    usingConfig[key] = defaultValue
+    if (config[key] === undefined) return
+
+    // type is not match
+    if (typeof config[key] !== defaultType) {
+      console.warn(
+        `[MasterHouse] typeof config "${key}" can only be ${defaultType}. will use default value: ${JSON.stringify(
+          defaultValue
+        )}`
+      )
       return
     }
 
-    if (typeof config[key] !== defaultType) {
-      console.warn(
-        `[MasterHouse] typeof config "${key}" can only be ${defaultType}. will use default value: ${defaultValue}`
+    if (!validator(config[key])) {
+      console.log(
+        `[MasterHouse] ${errorMessage}. will use default value: ${JSON.stringify(defaultValue)}`
       )
-    } else {
-      if (!validator(usingConfig[key])) {
-        console.log(`[MasterHouse] ${errorMessage}. will use default value: ${defaultValue}`)
-        return
-      }
-
-      usingConfig[key] = config[key]
+      return
     }
+
+    usingConfig[key] = config[key]
   })
 
-  if (configKeys.length)
+  if (configKeys.length) {
     console.warn(`[MasterHouse] there are extra config keys: ${JSON.stringify(configKeys)} `)
+  }
 
   return usingConfig
 }

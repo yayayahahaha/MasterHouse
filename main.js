@@ -1,3 +1,3 @@
 const MasterHouse = require('./MasterHouse')
 
-module.exports.MasterHouse = MasterHouse
+module.exports = MasterHouse
