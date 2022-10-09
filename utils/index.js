@@ -50,6 +50,11 @@ function defaultCheck(newTarget, config) {
       validator: (value) => value >= 0 || value === -1,
       errorMessage: 'maxRetry can only be equal or bigger than 0 or -1 means infinite',
     },
+    workerInterval: {
+      default: 500,
+      validator: (value) => value >= 0,
+      errorMessage: 'workerInterval can only be equal or bigger than 0',
+    },
     workerNumber: {
       default: 10,
       validator: isPositiveInt,

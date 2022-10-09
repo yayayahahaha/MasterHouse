@@ -83,7 +83,9 @@ function MasterHouse(config = {}) {
   }
 
   function wakeupWorkers(jobsGroupMap) {
-    workers.forEach((worker) => worker.wakeup(jobsGroupMap))
+    workers.forEach((worker, index) => {
+      setTimeout(() => worker.wakeup(jobsGroupMap), usingConfig.workerInterval * index)
+    })
   }
 
   const usingConfig = defaultCheck(new.target, config)
