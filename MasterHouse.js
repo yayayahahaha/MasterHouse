@@ -6,6 +6,7 @@ const { defaultCheck, toFixed } = utils
 /**
  * @class MasterHouse
  * @prototype doJobs<function> - accept array with jobs
+ * @prototype jobsCreateHelper<function> - use eval create dynamic promise function
  * */
 function MasterHouse(config = {}) {
   let jobGroupSeq = 0
@@ -213,6 +214,7 @@ MasterHouseWorker.prototype.updateLoading = function (jobStuff) {
   const { jobsGroupMap } = jobStuff
   Object.keys(jobsGroupMap).forEach((jobGroupId) => {
     const jobGroup = jobsGroupMap[jobGroupId]
+    if (jobGroup.status === 'done') return
 
     const { finishedJobsCount, totalJobs } = jobGroup
     const total = totalJobs.length
