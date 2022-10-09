@@ -161,7 +161,7 @@ function MasterHouseWorker(config) {
     jobGroup.workingJobs.splice(indexInGroup, 1)
     if (jobGroup.status === 'waiting') jobGroup.status = 'doing'
 
-    const result = await doJob.call(this, jobInfo)
+    const result = await doJob.call(this, jobInfo, jobStuff)
     jobInfo.result = result
     jobGroup.finishedJobsCount++
     this.updateLoading(jobStuff)
@@ -180,7 +180,7 @@ function MasterHouseWorker(config) {
    * @function doJob
    * @description check job type and await it until it finished
    * */
-  async function doJob(jobInfo) {
+  async function doJob(jobInfo, jobStuff) {
     const { job } = jobInfo
     const { maxRetry } = this.config
 
@@ -188,9 +188,11 @@ function MasterHouseWorker(config) {
     jobInfo.tryTimes++
     const result = await _getResult(job)
     if (result.status === 'error') {
+      // TODO 這裡還沒加如果出錯了要怎麼告訴使用者?
+      // console.log(result.result) // 這樣會毀掉 loading 的動畫
       jobInfo.errorData.push(result.result)
       if (jobInfo.tryTimes <= maxRetry || maxRetry === -1) {
-        return doJob.call(this, jobInfo)
+        return runJobFlow.call(this, jobStuff)
       }
     }
     jobInfo.status = 'done'
@@ -213,6 +215,7 @@ function MasterHouseWorker(config) {
 
   return this
 }
+// TODO updateLoading 的部分還沒有加最開始的 0%
 MasterHouseWorker.prototype.updateLoading = function (jobStuff) {
   const { jobsGroupMap } = jobStuff
   Object.keys(jobsGroupMap).forEach((jobGroupId) => {
