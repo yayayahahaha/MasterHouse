@@ -130,6 +130,7 @@ MasterHouse.prototype.jobsCreateHelper = function (codes) {
 function MasterHouseWorker(config) {
   MasterHouseWorker.prototype.updateConfig = (config) => Object.assign(this, { config })
   MasterHouseWorker.prototype.wakeup = function (jobStuff) {
+    if (status === 'working') return
     changeStatus('working')
     runJobFlow.call(this, jobStuff)
   }
