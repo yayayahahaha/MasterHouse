@@ -2,6 +2,7 @@ const utils = require('./utils')
 const { defaultCheck, toFixed } = utils
 
 // TODO function reset
+// TODO 每個 worker 的 default 間隔時間: 用時戳判斷? 如果小於某時間長度的話就等之類的
 
 /**
  * @class MasterHouse
