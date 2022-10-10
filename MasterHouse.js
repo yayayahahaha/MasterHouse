@@ -131,13 +131,13 @@ MasterHouse.prototype.jobsCreateHelper = function (codes) {
 function MasterHouseWorker(config) {
   MasterHouseWorker.prototype.updateConfig = (config) => Object.assign(this, { config })
   MasterHouseWorker.prototype.wakeup = function (jobStuff) {
-    if (status === 'working') return
-    changeStatus('working')
+    if (this.status === 'working') return
+    changeStatus.call(this, 'working')
     runJobFlow.call(this, jobStuff)
   }
 
   function changeStatus(value) {
-    status = value
+    this.status = value
   }
 
   /**
@@ -153,7 +153,7 @@ function MasterHouseWorker(config) {
     const { totalWorkingJobs, jobsGroupMap } = jobStuff
 
     // worker go home.
-    if (totalWorkingJobs.length === 0) return void changeStatus('idle')
+    if (totalWorkingJobs.length === 0) return void changeStatus.call(this, 'idle')
 
     const jobInfo = totalWorkingJobs.splice(0, 1)[0]
     const { jobsGroupId, jobId } = jobInfo
@@ -211,7 +211,7 @@ function MasterHouseWorker(config) {
     }
   }
 
-  let status = 'idle'
+  this.status = 'idle'
   this.config = config
 
   return this
