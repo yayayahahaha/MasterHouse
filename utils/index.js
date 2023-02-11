@@ -39,6 +39,11 @@ function defaultCheck(newTarget, config) {
       validator: (value) => value >= 0,
       errorMessage: 'randomDelay can only be equal or bigger than 0',
     },
+    timeout: {
+      default: -1,
+      validator: (value) => value > -(-1),
+      errorMessage: 'timeout can only be equal or bigger than 0 or -1 means N/A',
+    },
     eachCallback: {
       default: (f) => f,
     },
